@@ -4,16 +4,18 @@ set -Eo pipefail
 
 # shellcheck disable=SC1091
 source "$(dirname "$0")/../lib/json.bash"
+source "$(dirname "$0")/../lib/utils.bash"
 
-json=$(curl --fail --silent --location https://ziglang.org/download/index.json)
+get_index
 
 sort_versions() {
   sed 'h; s/[+-]/./g; s/.p\([[:digit:]]\)/.z\1/; s/$/.z/; G; s/\n/ /' |
     LC_ALL=C sort -t. -k 1,1 -k 2,2n -k 3,3n -k 4,4n -k 5,5n | awk '{print $2}'
+  echo master
 }
 
 list_all_versions() {
-  json_parse "$json" |
+  <"$(cache_dir)"/parsed_index.txt \
     sed 's/^\[\(.*\)\].*$/\1/' |
     grep -Eo '[0-9]+.[0-9]+.[0-9]+' |
     uniq

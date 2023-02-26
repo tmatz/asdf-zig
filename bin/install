@@ -4,6 +4,7 @@ set -eo pipefail
 
 # shellcheck disable=SC1091
 source "$(dirname "$0")/../lib/json.bash"
+source "$(dirname "$0")/../lib/utils.bash"
 
 trap cleanup SIGINT SIGTERM ERR
 
@@ -50,25 +51,31 @@ install_zig() {
     *) fail "Unsupported architecture" ;;
   esac
 
-  local json
-  json=$(curl --fail --silent --location https://ziglang.org/download/index.json)
-
+  local master_version=$(query_index_entry master version)
   local download_url
-  download_url=$(
-    json_parse "$json" |
-      grep "\[\"$version\",\"${architecture}-${platform}\",\"tarball\"\]" |
-      awk 'NR==1 { print $2 }' |
-      tr -d '"'
-  )
+
+  if [ "$version" = "master" ]; then
+    asdf install $(plugin_name) "$master_version" \
+      fail "Cound not install master version."
+    rm -rf "$install_path"
+    ln -s $(asdf where "$(plugin_name)" "$master_version") "$install_path"
+    exit
+  elif [ "$version" = "$master_version" ]; then
+    download_url=$(query_index_entry master "${architecture}-${platform}" tarball)
+  else
+    download_url=$(query_index_entry "$version" "${architecture}-${platform}" tarball)
+  fi
 
   local source_path="${install_path}/zig-${platform}-${architecture}-${version}.tar.xz"
 
   echo "∗ Downloading and installing Zig..."
   curl --fail --silent --location --create-dirs --output "$source_path" "$download_url"
   tar -xf "$source_path" -C "$install_path" --strip-components=1
+  rm "$source_path"
   mkdir -p "${install_path}/bin"
   ln -s "${install_path}/zig" "${install_path}/bin/zig"
   echo "The installation was successful!"
 }
 
+get_index
 install_zig "$ASDF_INSTALL_TYPE" "$ASDF_INSTALL_VERSION" "$ASDF_INSTALL_PATH"
